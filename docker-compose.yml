@@ -12,11 +12,11 @@ services:
     volumes:
       - .:/src:ro
     environment:
-      - SPOOF_CPU=1
-      - SPOOF_PCIE=1
-      - SPOOF_DDR=1
-      - SPOOF_TOPOLOGY=1
-      - SPOOF_LOG=0
+      - _MC_C=1
+      - _MC_P=1
+      - _MC_T=1
+      - _MC_K=1
+      - _MC_L=0
 
   detect:
     build: .

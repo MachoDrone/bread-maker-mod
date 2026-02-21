@@ -11,7 +11,7 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pciutils dmidecode i2c-tools coreutils && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /build/spoof_hw.so /build/detect_cpuid ./
+COPY --from=builder /build/libhwcompat.so /build/detect_cpuid ./
 COPY launcher.sh detect.sh ./
 RUN chmod +x launcher.sh detect.sh detect_cpuid
 ENTRYPOINT ["/app/launcher.sh"]
