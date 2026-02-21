@@ -57,6 +57,11 @@ static void get_brand_string(char brand[49]) {
     while (*p == ' ') p++;
     if (p != brand)
         memmove(brand, p, strlen(p) + 1);
+
+    /* Trim trailing spaces */
+    size_t len = strlen(brand);
+    while (len > 0 && brand[len - 1] == ' ')
+        brand[--len] = '\0';
 }
 
 static int has_vaes(void) {
