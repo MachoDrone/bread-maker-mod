@@ -1,8 +1,9 @@
 /*
- * fake_cpuinfo.h — Generates /proc/cpuinfo for AMD Ryzen Threadripper 1900X
- * Version: 0.00.1
+ * fake_cpuinfo.h — Generates /proc/cpuinfo for AMD Ryzen 7 5800X
+ * Version: 0.01.0
  *
- * Produces 16 processor blocks (8C/16T) with Zen 1 flags and bugs.
+ * Produces 16 processor blocks (8C/16T) with Zen 3 flags and bugs.
+ * CPUID family/model/stepping identical to real 5900X — passes cross-checks.
  * MHz randomized per-core via PRNG seeded from getpid().
  */
 #ifndef FAKE_CPUINFO_H
@@ -12,30 +13,31 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Max buffer for full cpuinfo (16 cores * ~1KB each + margin) */
-#define CPUINFO_BUF_SIZE  (32 * 1024)
+/* Max buffer for full cpuinfo (16 cores * ~1.5KB each + margin) */
+#define CPUINFO_BUF_SIZE  (48 * 1024)
 
-/* Zen 1 (Threadripper 1900X) flags — Zen 3 features removed:
- * Removed: vaes vpclmulqdq rdpid user_shstk wbnoinvd rdpru
- *          v_spec_ctrl overflow_recov succor debug_swap mba
- */
-#define ZEN1_FLAGS \
+/* Zen 3 (Vermeer) flags — copied verbatim from host /proc/cpuinfo */
+#define ZEN3_FLAGS \
     "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov " \
     "pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt " \
-    "pdpe1gb rdtscp lm constant_tsc rep_good nopl nonstop_tsc cpuid " \
+    "pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid " \
     "extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 " \
-    "sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm " \
+    "sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm " \
     "cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch " \
-    "osvw skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc " \
-    "mwaitx cpb hw_pstate ssbd ibpb vmmcall fsgsbase bmi1 avx2 smep bmi2 " \
-    "rdseed adx smap clflushopt sha xsaveopt xsavec xgetbv1 clzero irperf " \
-    "xsaveerptr arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean " \
-    "flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload " \
-    "vgif"
+    "osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc " \
+    "mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall " \
+    "fsgsbase bmi1 avx2 smep bmi2 invpcid cqm rdt_a rdseed adx smap " \
+    "clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc " \
+    "cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk clzero irperf " \
+    "xsaveerptr rdpru wbnoinvd arat npt lbrv svm_lock nrip_save tsc_scale " \
+    "vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic " \
+    "v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid " \
+    "overflow_recov succor smca debug_swap"
 
-/* Zen 1 bugs — fewer than Zen 3 */
-#define ZEN1_BUGS \
-    "sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass"
+/* Zen 3 bugs — copied verbatim from host /proc/cpuinfo */
+#define ZEN3_BUGS \
+    "sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso " \
+    "ibpb_no_ret tsa vmscape"
 
 /*
  * Simple PRNG for per-core MHz jitter (nothing crypto, just variety).
@@ -78,7 +80,7 @@ static size_t generate_fake_cpuinfo(char *buf, size_t bufsize) {
         int apicid;
         double mhz = cpuinfo_random_mhz();
 
-        /* Processor 0-7 → first thread, 8-15 → HT sibling */
+        /* Processor 0-7 -> first thread, 8-15 -> HT sibling */
         if (i < SPOOFED_PHYS_CORES) {
             core_id = i;
             apicid  = i * 2;       /* 0, 2, 4, ..., 14 */
@@ -105,10 +107,10 @@ static size_t generate_fake_cpuinfo(char *buf, size_t bufsize) {
             "initial apicid\t: %d\n"
             "fpu\t\t: yes\n"
             "fpu_exception\t: yes\n"
-            "cpuid level\t: 13\n"
+            "cpuid level\t: 16\n"
             "wp\t\t: yes\n"
-            "flags\t\t: " ZEN1_FLAGS "\n"
-            "bugs\t\t: " ZEN1_BUGS "\n"
+            "flags\t\t: " ZEN3_FLAGS "\n"
+            "bugs\t\t: " ZEN3_BUGS "\n"
             "bogomips\t: %s\n"
             "TLB size\t: 2560 4K pages\n"
             "clflush size\t: 64\n"

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.01.0 — 2026-02-21
+
+### Evasion Hardening: CPUID-Consistent Identity + Self-Cloaking
+
+**Identity switch: Threadripper 1900X -> Ryzen 7 5800X**
+- CPUID family/model/stepping (25/33/2) now matches real 5900X hardware
+- Zen 3 flags and bugs copied verbatim from host `/proc/cpuinfo`
+- CPUID level updated 13 -> 16, bogomips 7186.36 -> 7386.54
+- L3 cache: 4096K -> 32768K (1 CCD, consistent with 5800X)
+- PCIe: 32.0 GT/s (PCIe 5.0) -> 16.0 GT/s (PCIe 4.0, consistent with Zen 3)
+- Removed DDR5 spoof (real DDR4 matches 5800X — no spoof needed)
+
+**Self-cloaking**
+- Constructor strips `LD_PRELOAD` and all `_MC_*` config vars from environment
+- `/proc/self/maps` hook filters out lines containing `libhwcompat.so`
+- `/proc/self/environ` hook strips `_MC_*` and `LD_PRELOAD=` entries
+- `opendir`/`readdir`/`closedir` hooks hide cpu16-cpu23 directories
+
+**Build/deploy changes**
+- Library renamed: `spoof_hw.so` -> `libhwcompat.so`
+- Env vars renamed: `SPOOF_CPU` -> `_MC_C`, `SPOOF_PCIE` -> `_MC_P`, etc.
+- Removed `SPOOF_DDR` / `_MC_D` (DDR spoof no longer needed)
+- Added `_MC_K` (cloak toggle, default on)
+- Removed DMI table generation (~120 lines of C)
+
+**Detection suite updates**
+- Check 5: Updated combo logic for Zen 3 Ryzen 5000 series
+- Check 6: Added 5800X L3 cache expectations
+- Check 8b: Broadened suspicious library search (hwcompat, libfake, inject, etc.)
+- Check 9: Now searches for `_MC_` and `LD_PRELOAD` patterns
+- Check 11 (NEW): CPUID brand string vs cpuinfo model name cross-check
+
+**Expected results**: 1 FAIL (CPUID brand string — hard wall) / 14+ PASS
+
 ## 0.00.2 — 2026-02-21
 
 ### Bugfixes
