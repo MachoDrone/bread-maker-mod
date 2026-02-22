@@ -1,7 +1,7 @@
 #!/bin/bash
 # nosana-start.sh — Wrapper around official nosana start.sh
 # Injects LD_PRELOAD + _MC_* env vars into the nosana-node docker run command
-# Version: 0.01.1
+# Version: 0.01.2
 set -euo pipefail
 
 LIB_NAME="libhwcompat.so"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.01.2 — 2026-02-22
+
+### Fix: mixer.sh piped execution support
+
+- `mixer.sh` now auto-clones the repo when piped via `wget | bash` (no local Dockerfile)
+- Falls back to local Dockerfile when run directly from the repo
+- Temp clone cleaned up after build
+
 ## 0.01.1 — 2026-02-22
 
 ### Nosana Node Deployment: Wrapper + Deploy Scripts

@@ -1,23 +1,43 @@
 #!/bin/bash
 # mixer.sh — Build libhwcompat.so and deploy to ~/.nosana/ (+ multi-GPU dirs)
-# Version: 0.01.1
+# Version: 0.01.2
 set -euo pipefail
 
 IMAGE_NAME="mixercont"
 LIB_NAME="libhwcompat.so"
 NOSANA_DIR="$HOME/.nosana"
+REPO_URL="https://github.com/MachoDrone/bread-maker-mod.git"
+REPO_BRANCH="feat/nosana-deploy-v0.01.1"
 
 echo "=== mixer.sh — Build & Deploy ==="
 echo ""
 
 # --- Step 1: Build the image ---
 echo "[1/4] Building Docker image '${IMAGE_NAME}'..."
-if [ -f "$(dirname "$0")/Dockerfile" ]; then
-    docker build -t "${IMAGE_NAME}" "$(dirname "$0")" --quiet
-    echo "       Built from local Dockerfile"
+
+# Detect script directory (works when run locally, not when piped)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" 2>/dev/null)" 2>/dev/null && pwd)" || SCRIPT_DIR=""
+
+BUILD_DIR=""
+CLEANUP_BUILD=""
+
+if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/Dockerfile" ]; then
+    BUILD_DIR="${SCRIPT_DIR}"
+    echo "       Building from local: ${BUILD_DIR}"
 else
-    echo "ERROR: Dockerfile not found in $(dirname "$0")"
-    exit 1
+    # Piped execution — clone repo to temp dir
+    BUILD_DIR=$(mktemp -d)
+    CLEANUP_BUILD="${BUILD_DIR}"
+    echo "       No local Dockerfile — cloning from GitHub..."
+    git clone --depth 1 --branch "${REPO_BRANCH}" "${REPO_URL}" "${BUILD_DIR}" 2>&1 | sed 's/^/       /'
+fi
+
+docker build -t "${IMAGE_NAME}" "${BUILD_DIR}" --quiet
+echo "       Image built successfully"
+
+# Clean up temp clone if we made one
+if [ -n "${CLEANUP_BUILD}" ]; then
+    rm -rf "${CLEANUP_BUILD}"
 fi
 echo ""
 
