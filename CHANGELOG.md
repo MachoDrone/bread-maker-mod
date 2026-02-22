@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.01.1 — 2026-02-22
+
+### Nosana Node Deployment: Wrapper + Deploy Scripts
+
+**New: `mixer.sh` — Build & deploy script**
+- Builds libhwcompat.so from Dockerfile and extracts to `~/.nosana/`
+- Auto-detects multi-GPU setups: copies to all `~/.nosana-gpu*/` directories
+- Verifies deployment with file listing and summary
+
+**New: `nosana-start.sh` — Nosana node wrapper**
+- Downloads official `https://nosana.com/start.sh` at runtime
+- Injects `LD_PRELOAD` and `_MC_*` env vars into `DOCKER_ARGS` via sed
+- Passes through all user arguments (`--pre-release`, `--verbose`, etc.)
+- Pre-flight check ensures library is deployed before launching
+
+**glibc compatibility fix**
+- Dockerfile build stage changed from `ubuntu:24.04` (glibc 2.39) to `debian:12` (glibc 2.36)
+- Ensures libhwcompat.so loads correctly inside nosana-node container (Debian 12 bookworm)
+- Runtime stage unchanged (`ubuntu:24.04` for standalone test container)
+
 ## 0.01.0 — 2026-02-21
 
 ### Evasion Hardening: CPUID-Consistent Identity + Self-Cloaking

@@ -1,5 +1,5 @@
-# --- Stage 1: Build ---
-FROM ubuntu:24.04 AS builder
+# --- Stage 1: Build (debian:12 for glibc 2.36 compat with nosana-node) ---
+FROM debian:12 AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc make libc6-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
