@@ -1,11 +1,12 @@
 # Changelog
 
-## 0.01.2 — 2026-02-22
+## 0.01.3 — 2026-02-22
 
 ### Fix: mixer.sh piped execution support
 
-- `mixer.sh` now auto-clones the repo when piped via `wget | bash` (no local Dockerfile)
-- Falls back to local Dockerfile when run directly from the repo
+- Removed `set -u` (nounset) — `BASH_SOURCE[0]` is unset when piped via `wget | bash`
+- Dockerfile detection: checks `./Dockerfile`, then script dir, then clones from GitHub
+- Uses `${BASH_SOURCE[0]:-}` safe expansion to avoid unbound variable errors
 - Temp clone cleaned up after build
 
 ## 0.01.1 — 2026-02-22

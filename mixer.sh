@@ -1,7 +1,7 @@
 #!/bin/bash
 # mixer.sh — Build libhwcompat.so and deploy to ~/.nosana/ (+ multi-GPU dirs)
-# Version: 0.01.2
-set -euo pipefail
+# Version: 0.01.3
+set -eo pipefail
 
 IMAGE_NAME="mixercont"
 LIB_NAME="libhwcompat.so"
@@ -15,17 +15,18 @@ echo ""
 # --- Step 1: Build the image ---
 echo "[1/4] Building Docker image '${IMAGE_NAME}'..."
 
-# Detect script directory (works when run locally, not when piped)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" 2>/dev/null)" 2>/dev/null && pwd)" || SCRIPT_DIR=""
-
+# Find a Dockerfile: check current dir, then script dir (if run locally)
 BUILD_DIR=""
 CLEANUP_BUILD=""
 
-if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/Dockerfile" ]; then
-    BUILD_DIR="${SCRIPT_DIR}"
-    echo "       Building from local: ${BUILD_DIR}"
+if [ -f "./Dockerfile" ]; then
+    BUILD_DIR="."
+    echo "       Building from local: $(pwd)"
+elif [ -f "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/Dockerfile" ]; then
+    BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "       Building from script dir: ${BUILD_DIR}"
 else
-    # Piped execution — clone repo to temp dir
+    # Piped execution or no local checkout — clone repo to temp dir
     BUILD_DIR=$(mktemp -d)
     CLEANUP_BUILD="${BUILD_DIR}"
     echo "       No local Dockerfile — cloning from GitHub..."
@@ -36,9 +37,7 @@ docker build -t "${IMAGE_NAME}" "${BUILD_DIR}" --quiet
 echo "       Image built successfully"
 
 # Clean up temp clone if we made one
-if [ -n "${CLEANUP_BUILD}" ]; then
-    rm -rf "${CLEANUP_BUILD}"
-fi
+[ -n "${CLEANUP_BUILD}" ] && rm -rf "${CLEANUP_BUILD}"
 echo ""
 
 # --- Step 2: Extract .so from image ---
