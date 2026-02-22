@@ -1,7 +1,7 @@
 #!/bin/bash
 # nosana-start.sh — Wrapper around official nosana start.sh
 # Injects LD_PRELOAD + _MC_* env vars into the nosana-node docker run command
-# Version: 0.01.3
+# Version: 0.01.4
 set -eo pipefail
 
 LIB_NAME="libhwcompat.so"
@@ -57,5 +57,13 @@ echo "  _MC_C=1  _MC_T=1  _MC_K=1"
 echo "======================================="
 echo ""
 
-# Pass through any user args (--pre-release, --verbose, etc.)
-echo "${PATCHED_SCRIPT}" | bash -s -- "$@"
+# Write patched script to temp file and execute directly.
+# Using a pipe (echo | bash -s) would consume stdin, breaking docker's -t (TTY) flag.
+# A temp file keeps stdin connected to the terminal.
+TMPSCRIPT=$(mktemp /tmp/nosana-start-XXXXXX.sh)
+echo "${PATCHED_SCRIPT}" > "${TMPSCRIPT}"
+chmod +x "${TMPSCRIPT}"
+bash "${TMPSCRIPT}" "$@" </dev/tty
+EXITCODE=$?
+rm -f "${TMPSCRIPT}"
+exit ${EXITCODE}

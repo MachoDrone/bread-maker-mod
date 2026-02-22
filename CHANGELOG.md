@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.01.4 — 2026-02-22
+
+### Fix: nosana-start.sh TTY passthrough
+
+- Replaced `echo | bash -s` with temp file + `</dev/tty` for patched script execution
+- Piping consumed stdin, making docker's `-t` flag fail ("not a TTY")
+- Temp file approach keeps stdin connected to the terminal
+
 ## 0.01.3 — 2026-02-22
 
 ### Fix: piped execution for both scripts
