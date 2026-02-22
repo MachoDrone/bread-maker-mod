@@ -1,8 +1,8 @@
 #!/bin/bash
 # nosana-start.sh — Wrapper around official nosana start.sh
 # Injects LD_PRELOAD + _MC_* env vars into the nosana-node docker run command
-# Version: 0.01.2
-set -euo pipefail
+# Version: 0.01.3
+set -eo pipefail
 
 LIB_NAME="libhwcompat.so"
 NOSANA_DIR="$HOME/.nosana"
@@ -29,18 +29,21 @@ fi
 echo "[OK] Downloaded start.sh ($(echo "${ORIG_SCRIPT}" | wc -l) lines)"
 
 # --- Inject env vars ---
-# The official start.sh builds a DOCKER_ARGS array, then uses it in:
-#   docker run ... "${DOCKER_ARGS[@]}" ...
-# We insert our env flags just before that expansion.
-INJECT_LINE='DOCKER_ARGS+=(-e LD_PRELOAD=/root/.nosana/libhwcompat.so -e _MC_C=1 -e _MC_T=1 -e _MC_K=1)'
+# The official start.sh has:
+#   docker run \
+#     ${DOCKER_ARGS[@]} \
+#     nosana/nosana-cli:latest ...
+# We insert our DOCKER_ARGS append BEFORE the "docker run \" line
+# so it's a standalone statement, not inside the multi-line command.
+INJECT_LINE='    DOCKER_ARGS+=(-e LD_PRELOAD=/root/.nosana/libhwcompat.so -e _MC_C=1 -e _MC_T=1 -e _MC_K=1)'
 
-PATCHED_SCRIPT=$(echo "${ORIG_SCRIPT}" | sed "/\${DOCKER_ARGS\[@\]}/i\\
+PATCHED_SCRIPT=$(echo "${ORIG_SCRIPT}" | sed "/^[[:space:]]*docker run[[:space:]]*\\\\$/i\\
 ${INJECT_LINE}")
 
-# Verify injection worked (count occurrences of our injected line)
+# Verify injection worked
 INJECT_COUNT=$(echo "${PATCHED_SCRIPT}" | grep -c '_MC_C=1' || true)
 if [ "${INJECT_COUNT}" -eq 0 ]; then
-    echo "ERROR: Injection failed — could not find \${DOCKER_ARGS[@]} in start.sh"
+    echo "ERROR: Injection failed — could not find 'docker run \\' in start.sh"
     echo "       The official script may have changed format."
     exit 1
 fi

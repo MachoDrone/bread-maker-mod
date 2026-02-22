@@ -2,12 +2,17 @@
 
 ## 0.01.3 — 2026-02-22
 
-### Fix: mixer.sh piped execution support
+### Fix: piped execution for both scripts
 
+**mixer.sh**
 - Removed `set -u` (nounset) — `BASH_SOURCE[0]` is unset when piped via `wget | bash`
 - Dockerfile detection: checks `./Dockerfile`, then script dir, then clones from GitHub
 - Uses `${BASH_SOURCE[0]:-}` safe expansion to avoid unbound variable errors
-- Temp clone cleaned up after build
+
+**nosana-start.sh**
+- Fixed sed injection target: `docker run \` instead of `${DOCKER_ARGS[@]}`
+- Old target was inside a multi-line `docker run` continuation — broke shell parsing
+- New target inserts standalone `DOCKER_ARGS+=()` statement before the `docker run` block
 
 ## 0.01.1 — 2026-02-22
 
