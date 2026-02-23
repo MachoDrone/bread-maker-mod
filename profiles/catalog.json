@@ -1,0 +1,150 @@
+{
+  "profiles": {
+    "threadripper-1900x": {
+      "model_string": "AMD Ryzen Threadripper 1900X 8-Core Processor",
+      "family": 23,
+      "model": 1,
+      "stepping": 1,
+      "cores": 8,
+      "threads": 16,
+      "threads_per_core": 2,
+      "arch": "zen1",
+      "smbios": {
+        "board_vendor": "ASRock",
+        "board_model": "X399 Taichi",
+        "board_serial_prefix": "M80-",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "P3.20",
+        "system_manufacturer": "To Be Filled By O.E.M.",
+        "system_product": "X399 Taichi"
+      },
+      "suppress_flags": [
+        "vaes", "vpclmulqdq", "avx512f", "avx512dq", "avx512cd",
+        "avx512bw", "avx512vl", "avx512_vnni", "avx512_bf16",
+        "avx512_vbmi", "avx512_vbmi2", "avx512_vpopcntdq",
+        "rdpru", "wbnoinvd", "pku", "ospke"
+      ],
+      "mac_oui": "00:1F:C6",
+      "nic_comment": "Intel I219 NIC"
+    },
+    "ryzen-7-5800x": {
+      "model_string": "AMD Ryzen 7 5800X 8-Core Processor",
+      "family": 25,
+      "model": 33,
+      "stepping": 2,
+      "cores": 8,
+      "threads": 16,
+      "threads_per_core": 2,
+      "arch": "zen3",
+      "smbios": {
+        "board_vendor": "ASUSTeK COMPUTER INC.",
+        "board_model": "ROG STRIX B550-F GAMING",
+        "board_serial_prefix": "MB-",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "2803",
+        "system_manufacturer": "System manufacturer",
+        "system_product": "System Product Name"
+      },
+      "suppress_flags": [
+        "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
+        "avx512_vnni", "avx512_bf16", "avx512_vbmi", "avx512_vbmi2",
+        "avx512_vpopcntdq"
+      ],
+      "mac_oui": "00:E0:4C",
+      "nic_comment": "Realtek RTL8125 NIC"
+    },
+    "ryzen-9-5900x": {
+      "model_string": "AMD Ryzen 9 5900X 12-Core Processor",
+      "family": 25,
+      "model": 33,
+      "stepping": 2,
+      "cores": 12,
+      "threads": 24,
+      "threads_per_core": 2,
+      "arch": "zen3",
+      "smbios": {
+        "board_vendor": "Micro-Star International Co., Ltd.",
+        "board_model": "MAG X570S TOMAHAWK WIFI (MS-7D54)",
+        "board_serial_prefix": "07D5",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "A.B0",
+        "system_manufacturer": "Micro-Star International Co., Ltd.",
+        "system_product": "MS-7D54"
+      },
+      "suppress_flags": [
+        "avx512f", "avx512dq", "avx512cd", "avx512bw", "avx512vl",
+        "avx512_vnni", "avx512_bf16", "avx512_vbmi", "avx512_vbmi2",
+        "avx512_vpopcntdq"
+      ],
+      "mac_oui": "00:1F:C6",
+      "nic_comment": "Intel I211 NIC"
+    },
+    "epyc-7313": {
+      "model_string": "AMD EPYC 7313 16-Core Processor",
+      "family": 25,
+      "model": 1,
+      "stepping": 1,
+      "cores": 16,
+      "threads": 32,
+      "threads_per_core": 2,
+      "arch": "milan",
+      "smbios": {
+        "board_vendor": "Supermicro",
+        "board_model": "H12SSL-i",
+        "board_serial_prefix": "WM21",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "2.5",
+        "system_manufacturer": "Supermicro",
+        "system_product": "Super Server"
+      },
+      "suppress_flags": [
+        "avx512_bf16"
+      ],
+      "mac_oui": "AC:1F:6B",
+      "nic_comment": "Supermicro IPMI/BMC LAN"
+    },
+    "ryzen-9-7950x": {
+      "model_string": "AMD Ryzen 9 7950X 16-Core Processor",
+      "family": 25,
+      "model": 97,
+      "stepping": 2,
+      "cores": 16,
+      "threads": 32,
+      "threads_per_core": 2,
+      "arch": "zen4",
+      "smbios": {
+        "board_vendor": "ASUSTeK COMPUTER INC.",
+        "board_model": "ROG CROSSHAIR X670E HERO",
+        "board_serial_prefix": "MC-",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "1402",
+        "system_manufacturer": "System manufacturer",
+        "system_product": "System Product Name"
+      },
+      "suppress_flags": [],
+      "mac_oui": "00:E0:4C",
+      "nic_comment": "Realtek RTL8125B NIC"
+    }
+  },
+  "speed_classes": {
+    "datacenter": {
+      "download_min": 800, "download_max": 1200,
+      "upload_min": 750, "upload_max": 1100,
+      "latency_min": 5, "latency_max": 25
+    },
+    "business": {
+      "download_min": 300, "download_max": 600,
+      "upload_min": 200, "upload_max": 500,
+      "latency_min": 10, "latency_max": 40
+    },
+    "residential": {
+      "download_min": 50, "download_max": 200,
+      "upload_min": 20, "upload_max": 50,
+      "latency_min": 15, "latency_max": 60
+    }
+  },
+  "disk_identity": {
+    "vendor": "WDC",
+    "product": "WDS500G2B0A"
+  }
+}

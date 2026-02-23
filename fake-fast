@@ -1,0 +1,11 @@
+#!/bin/bash
+# fake-fast — Drop-in replacement for Netflix fast-cli
+# Returns spoofed speed test JSON matching fast --json output format
+# Used inside the fake nosana/stats image to report desired network speeds
+#
+# Version: 0.02.0
+
+# Mimic the real fast-cli: accept any flags silently
+# Real usage: fast -u --json --timeout 30
+
+echo '{"downloadSpeed":1076,"uploadSpeed":1041,"latency":21}'
