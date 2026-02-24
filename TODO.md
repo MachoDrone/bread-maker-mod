@@ -1,5 +1,14 @@
 # TODO — Back-burner Items
 
+## Completed in v0.03.2
+- [x] Standalone `mixer-start.sh` — wget+bash runnable on VM, no SSH from host needed
+- [x] Watchdog cron (every 5 min) — auto re-injects spoofed stats image if wiped
+- [x] Persistent build files at `/opt/mixer-spoof/` (survives reboots)
+- [x] Stale image detection — compares speed values, not just image presence
+- [x] Provision pipeline path aligned `/tmp/mixer-build/` → `/opt/mixer-spoof/`
+- [x] `cron` added to cloud-init packages
+- [x] Fixed `MIXER_VERSION` stuck at 0.03.0
+
 ## Completed in v0.03.0
 - [x] Mixer CLI tool — full VM lifecycle automation
 - [x] CPU profile catalog (5 AMD profiles with SMBIOS, flag suppressions)
