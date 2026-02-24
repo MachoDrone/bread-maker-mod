@@ -1,0 +1,31 @@
+services:
+  spoof:
+    build: .
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - .:/src:ro
+    environment:
+      - _MC_C=1
+      - _MC_P=1
+      - _MC_T=1
+      - _MC_K=1
+      - _MC_L=0
+
+  detect:
+    build: .
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    entrypoint: ["/app/detect.sh"]

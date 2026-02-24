@@ -1,0 +1,17 @@
+# Dockerfile.stats — Fake nosana/stats image with spoofed network speed + GPU UUID
+# Replaces the `fast` CLI binary with a script that returns fixed JSON values
+# Replaces `/cuda_check` with a wrapper that patches the GPU UUID
+# Build: docker build -t nosana/stats:v1.2.1 -f Dockerfile.stats .
+#
+# Version: 0.02.1
+
+FROM nosana/stats:v1.2.1
+
+# Speed spoof: replace fast binary
+COPY fake-fast /usr/local/bin/fast
+RUN chmod +x /usr/local/bin/fast
+
+# GPU UUID spoof: rename real binary, install wrapper
+RUN mv /cuda_check /cuda_check_real
+COPY cuda-check-wrapper.sh /cuda_check
+RUN chmod +x /cuda_check

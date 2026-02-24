@@ -1,0 +1,239 @@
+#!/bin/bash
+# mixer — Automated Proxmox VM spoofing CLI
+# Creates and manages VMs with consistent hardware identity spoofing
+#
+# Usage: mixer <command> [args...]
+# Run 'mixer help' for full command list
+#
+# Version: 0.03.2
+set -eo pipefail
+
+# --- Resolve script directory ---
+MIXER_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Source library modules ---
+source "${MIXER_SCRIPT_DIR}/lib/mixer-common.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-profiles.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-stealth.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-cloudinit.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-vm.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-gpu.sh"
+source "${MIXER_SCRIPT_DIR}/lib/mixer-provision.sh"
+
+# Override MIXER_BASE to script dir (supports running from repo checkout)
+MIXER_BASE="${MIXER_SCRIPT_DIR}"
+MIXER_CATALOG="${MIXER_BASE}/profiles/catalog.json"
+MIXER_TEMPLATE_DIR="${MIXER_BASE}/templates"
+MIXER_CLOUD_INIT_TPL="${MIXER_TEMPLATE_DIR}/cloud-init-user.yaml.tpl"
+
+# --- Help ---
+mixer_help() {
+    echo -e "${BOLD}mixer${NC} v${MIXER_VERSION} — Automated Proxmox VM spoofing"
+    echo ""
+    echo -e "${BOLD}Usage:${NC}"
+    echo "  mixer <command> [args...]"
+    echo ""
+    echo -e "${BOLD}Commands:${NC}"
+    echo "  init                         One-time setup (cloud image, template, SSH key)"
+    echo "  create <profile> [options]   Create a spoofed VM from profile"
+    echo "  list                         List all mixer-managed VMs"
+    echo "  status <vmid>                Detailed VM status"
+    echo "  destroy <vmid>               Tear down a VM"
+    echo "  provision <vmid>             Re-run post-boot provisioning"
+    echo "  profiles                     List available CPU profiles"
+    echo "  profiles show <name>         Show profile details"
+    echo "  gpu assign <vmid>            Assign GPU to a VM"
+    echo "  gpu release                  Release GPU from current holder"
+    echo "  gpu status                   Show GPU assignment"
+    echo "  version                      Show version"
+    echo "  help                         Show this help"
+    echo ""
+    echo -e "${BOLD}Create Options:${NC}"
+    echo "  --name <name>          VM name (default: mixer-<profile>-<seq>)"
+    echo "  --vmid <id>            VM ID 200-299 (default: auto)"
+    echo "  --ram <mb>             RAM in MB (default: 49152)"
+    echo "  --disk <gb>            Disk in GB (default: 500)"
+    echo "  --ip <cidr>            Static IP (default: DHCP)"
+    echo "  --gateway <ip>         Gateway (required with --ip)"
+    echo "  --bridge <name>        Network bridge (default: vmbr0)"
+    echo "  --speed-class <class>  datacenter|business|residential (default: datacenter)"
+    echo "  --gpu                  Assign GPU after creation"
+    echo "  --no-provision         Skip post-boot provisioning"
+    echo "  --dry-run              Show commands without executing"
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo "  mixer init"
+    echo "  mixer create threadripper-1900x --gpu --ip 192.168.1.200/24 --gateway 192.168.1.1"
+    echo "  mixer create ryzen-7-5800x --speed-class residential"
+    echo "  mixer list"
+    echo "  mixer gpu assign 201"
+    echo ""
+}
+
+# --- Parse 'create' options ---
+mixer_parse_create() {
+    local profile="$1"
+    shift
+
+    local vm_name="" vmid="" ram="${MIXER_DEFAULT_RAM}" disk="${MIXER_DEFAULT_DISK}"
+    local ip="dhcp" gateway="" bridge="${MIXER_DEFAULT_BRIDGE}"
+    local speed_class="${MIXER_DEFAULT_SPEED_CLASS}"
+    local assign_gpu="false" no_provision="false" dry_run="false"
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name)      vm_name="$2"; shift 2 ;;
+            --vmid)      vmid="$2"; shift 2 ;;
+            --ram)       ram="$2"; shift 2 ;;
+            --disk)      disk="$2"; shift 2 ;;
+            --ip)        ip="$2"; shift 2 ;;
+            --gateway)   gateway="$2"; shift 2 ;;
+            --bridge)    bridge="$2"; shift 2 ;;
+            --speed-class) speed_class="$2"; shift 2 ;;
+            --gpu)       assign_gpu="true"; shift ;;
+            --no-provision) no_provision="true"; shift ;;
+            --dry-run)   dry_run="true"; shift ;;
+            *)
+                log_error "Unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    # Validate: gateway required with static IP
+    if [ "${ip}" != "dhcp" ] && [ -z "${gateway}" ]; then
+        log_error "--gateway is required when using --ip"
+        return 1
+    fi
+
+    mixer_vm_create "${profile}" "${vm_name}" "${vmid}" "${ram}" "${disk}" \
+        "${ip}" "${gateway}" "${bridge}" "${speed_class}" "${assign_gpu}" \
+        "${no_provision}" "${dry_run}"
+}
+
+# --- Main dispatcher ---
+main() {
+    local cmd="${1:-help}"
+    shift 2>/dev/null || true
+
+    case "${cmd}" in
+        init)
+            mixer_require_root
+            mixer_require_qm
+            mixer_require_jq
+            mixer_ensure_dirs
+            mixer_vm_init
+            ;;
+
+        create)
+            mixer_require_root
+            mixer_require_qm
+            mixer_require_jq
+            mixer_ensure_dirs
+            if [ $# -lt 1 ]; then
+                log_error "Usage: mixer create <profile> [options]"
+                echo "Run 'mixer profiles' to see available profiles."
+                exit 1
+            fi
+            mixer_parse_create "$@"
+            ;;
+
+        list)
+            mixer_require_jq
+            mixer_ensure_dirs
+            mixer_vm_list
+            ;;
+
+        status)
+            mixer_require_jq
+            mixer_ensure_dirs
+            if [ $# -lt 1 ]; then
+                log_error "Usage: mixer status <vmid>"
+                exit 1
+            fi
+            mixer_vm_status "$1"
+            ;;
+
+        destroy)
+            mixer_require_root
+            mixer_require_qm
+            mixer_require_jq
+            mixer_ensure_dirs
+            if [ $# -lt 1 ]; then
+                log_error "Usage: mixer destroy <vmid>"
+                exit 1
+            fi
+            mixer_vm_destroy "$1"
+            ;;
+
+        provision)
+            mixer_require_root
+            mixer_require_jq
+            mixer_ensure_dirs
+            if [ $# -lt 1 ]; then
+                log_error "Usage: mixer provision <vmid>"
+                exit 1
+            fi
+            mixer_provision_vm "$1"
+            ;;
+
+        profiles)
+            mixer_require_jq
+            if [ "${1:-}" = "show" ]; then
+                if [ $# -lt 2 ]; then
+                    log_error "Usage: mixer profiles show <name>"
+                    exit 1
+                fi
+                mixer_profiles_show "$2"
+            else
+                mixer_profiles_list
+            fi
+            ;;
+
+        gpu)
+            mixer_require_root
+            mixer_require_jq
+            mixer_ensure_dirs
+            local subcmd="${1:-status}"
+            shift 2>/dev/null || true
+            case "${subcmd}" in
+                assign)
+                    mixer_require_qm
+                    if [ $# -lt 1 ]; then
+                        log_error "Usage: mixer gpu assign <vmid>"
+                        exit 1
+                    fi
+                    mixer_gpu_assign "$1"
+                    ;;
+                release)
+                    mixer_require_qm
+                    mixer_gpu_release
+                    ;;
+                status)
+                    mixer_gpu_status
+                    ;;
+                *)
+                    log_error "Unknown gpu command: ${subcmd}"
+                    echo "Usage: mixer gpu [assign <vmid>|release|status]"
+                    exit 1
+                    ;;
+            esac
+            ;;
+
+        version)
+            echo "mixer v${MIXER_VERSION}"
+            ;;
+
+        help|--help|-h)
+            mixer_help
+            ;;
+
+        *)
+            log_error "Unknown command: ${cmd}"
+            echo "Run 'mixer help' for available commands."
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
