@@ -99,13 +99,35 @@ fi
 if docker inspect podman >/dev/null 2>&1; then
     log_step "Podman container detected — checking if image needs injection..."
 
-    # Test if spoofed image is already present (run fast with 5s timeout)
+    # Load expected values from config
+    EXPECTED_DL=""
+    if [ -f "${CONFIG_FILE}" ]; then
+        source "${CONFIG_FILE}"
+        EXPECTED_DL="${DL}"
+    fi
+
+    # Test if spoofed image is present AND matches our values
+    NEEDS_INJECT="true"
     FAST_OUTPUT=$(docker exec podman podman run --rm --entrypoint /usr/local/bin/fast \
         "${REGISTRY_PREFIX}/${STATS_IMAGE}" --json 2>/dev/null || true)
 
     if echo "${FAST_OUTPUT}" | grep -q '"downloadSpeed"' 2>/dev/null; then
-        log_info "Spoofed image already present in podman — skipping injection"
-    else
+        # Image exists — check if values match
+        if [ -n "${EXPECTED_DL}" ]; then
+            ACTUAL_DL=$(echo "${FAST_OUTPUT}" | grep -o '"downloadSpeed":[0-9]*' | grep -o '[0-9]*$')
+            if [ "${ACTUAL_DL}" = "${EXPECTED_DL}" ]; then
+                NEEDS_INJECT="false"
+                log_info "Spoofed image present with correct values — skipping injection"
+            else
+                log_step "Stale image detected (dl=${ACTUAL_DL}, expected=${EXPECTED_DL}) — re-injecting..."
+            fi
+        else
+            NEEDS_INJECT="false"
+            log_info "Spoofed image already present in podman — skipping injection"
+        fi
+    fi
+
+    if [ "${NEEDS_INJECT}" = "true" ]; then
         log_step "Injecting fake stats image into podman..."
         if docker save "${REGISTRY_PREFIX}/${STATS_IMAGE}" | docker exec -i podman podman load >/dev/null 2>&1; then
             docker exec podman podman tag \
