@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.03.1 — 2026-02-24
+
+### EPYC 4464P Profile + Conditional GPU UUID Spoofing
+
+**New: `epyc-4464p` CPU profile**
+- AMD EPYC 4464P 12C/24T (Zen 4) — entry-level EPYC 4004 server identity
+- ASRock Rack B650D4U motherboard (real AM5 server board for EPYC 4004 series)
+- Intel I225-LM 2.5G NIC MAC OUI (`A8:A1:59`)
+- No CPU flag suppression (Zen 4 is superset of host Zen 3)
+- `spoof_gpu_uuid: false` — new field, passes through real GPU UUID
+
+**New: Conditional GPU UUID spoofing (`spoof_gpu_uuid`)**
+- New `spoof_gpu_uuid` field in profile catalog (defaults to `true` for backward compat)
+- When `false`: Dockerfile skips cuda_check wrapper, SCP skips wrapper file
+- Threaded through `mixer_profile_load()` → VM state JSON → provision pipeline
+- Existing profiles unaffected (implicit `true` default)
+
+**Updated: `datacenter` speed class**
+- Tightened range: 1004–1099 Mbps download/upload (was 800–1200/750–1100)
+- Latency: 5–12ms (was 5–25ms)
+
 ## 0.03.0 — 2026-02-23
 
 ### Mixer CLI — Automated Proxmox VM Spoofing Tool

@@ -2,7 +2,7 @@
 # lib/mixer-provision.sh — Post-boot provisioning pipeline
 # SSHes into VM, waits for cloud-init, SCPs spoof files, builds fake image, verifies
 #
-# Version: 0.03.0
+# Version: 0.03.1
 
 PROVISION_SSH_TIMEOUT=300
 PROVISION_SSH_INTERVAL=10
@@ -156,7 +156,11 @@ mixer_provision_generate_dockerfile() {
     local vmid="$1"
     local output="/tmp/mixer-Dockerfile-stats-${vmid}"
 
-    cat > "${output}" <<'DOCKERFILE'
+    local spoof_gpu
+    spoof_gpu=$(mixer_vm_state_get "${vmid}" "spoof_gpu_uuid" "true")
+
+    if [ "${spoof_gpu}" = "true" ]; then
+        cat > "${output}" <<'DOCKERFILE'
 FROM nosana/stats:v1.2.1
 
 # Speed spoof: replace fast binary
@@ -168,6 +172,15 @@ RUN mv /cuda_check /cuda_check_real
 COPY cuda-check-wrapper.sh /cuda_check
 RUN chmod +x /cuda_check
 DOCKERFILE
+    else
+        cat > "${output}" <<'DOCKERFILE'
+FROM nosana/stats:v1.2.1
+
+# Speed spoof: replace fast binary
+COPY fake-fast /usr/local/bin/fast
+RUN chmod +x /usr/local/bin/fast
+DOCKERFILE
+    fi
 
     echo "${output}"
 }
@@ -179,9 +192,11 @@ mixer_provision_scp_files() {
 
     log_step "Generating per-VM spoof files..."
 
-    local fake_fast cuda_wrapper dockerfile
+    local spoof_gpu
+    spoof_gpu=$(mixer_vm_state_get "${vmid}" "spoof_gpu_uuid" "true")
+
+    local fake_fast dockerfile
     fake_fast=$(mixer_provision_generate_fake_fast "${vmid}")
-    cuda_wrapper=$(mixer_provision_generate_cuda_wrapper "${vmid}")
     dockerfile=$(mixer_provision_generate_dockerfile "${vmid}")
 
     log_step "Copying spoof files to VM ${vmid}..."
@@ -190,11 +205,19 @@ mixer_provision_scp_files() {
     mixer_ssh "${ip}" "mkdir -p /tmp/mixer-build"
 
     mixer_scp "${fake_fast}" "${ip}" "/tmp/mixer-build/fake-fast"
-    mixer_scp "${cuda_wrapper}" "${ip}" "/tmp/mixer-build/cuda-check-wrapper.sh"
     mixer_scp "${dockerfile}" "${ip}" "/tmp/mixer-build/Dockerfile.stats"
 
+    if [ "${spoof_gpu}" = "true" ]; then
+        local cuda_wrapper
+        cuda_wrapper=$(mixer_provision_generate_cuda_wrapper "${vmid}")
+        mixer_scp "${cuda_wrapper}" "${ip}" "/tmp/mixer-build/cuda-check-wrapper.sh"
+        rm -f "${cuda_wrapper}"
+    else
+        log_info "GPU UUID spoofing disabled — skipping cuda-check wrapper"
+    fi
+
     # Clean up local temp files
-    rm -f "${fake_fast}" "${cuda_wrapper}" "${dockerfile}"
+    rm -f "${fake_fast}" "${dockerfile}"
 
     log_info "Spoof files copied to VM ${vmid}"
 }

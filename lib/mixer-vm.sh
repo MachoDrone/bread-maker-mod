@@ -2,7 +2,7 @@
 # lib/mixer-vm.sh — VM lifecycle management (create, destroy, list, status)
 # Uses Proxmox qm CLI for VM operations
 #
-# Version: 0.03.0
+# Version: 0.03.1
 
 # --- Find next available VMID in range ---
 mixer_vm_next_id() {
@@ -187,7 +187,11 @@ mixer_vm_create() {
     echo -e "  ${BOLD}Network:${NC}     ${mac} on ${bridge} (e1000e)"
     echo -e "  ${BOLD}IP:${NC}          ${ip}"
     echo -e "  ${BOLD}Speed:${NC}       ${download}/${upload} Mbps, ${latency}ms (${speed_class})"
-    echo -e "  ${BOLD}GPU UUID:${NC}    ${gpu_uuid}"
+    if [ "${PROFILE_SPOOF_GPU_UUID}" = "true" ]; then
+        echo -e "  ${BOLD}GPU UUID:${NC}    ${gpu_uuid} (spoofed)"
+    else
+        echo -e "  ${BOLD}GPU UUID:${NC}    passthrough (no spoof)"
+    fi
     echo -e "  ${BOLD}Board:${NC}       ${PROFILE_BOARD_VENDOR} ${PROFILE_BOARD_MODEL}"
     echo ""
 
@@ -253,6 +257,7 @@ mixer_vm_create() {
   "disk_vendor": "${disk_vendor}",
   "disk_product": "${disk_product}",
   "gpu_uuid": "${gpu_uuid}",
+  "spoof_gpu_uuid": ${PROFILE_SPOOF_GPU_UUID},
   "speed_class": "${speed_class}",
   "download_speed": ${download},
   "upload_speed": ${upload},
@@ -396,7 +401,13 @@ mixer_vm_status() {
     echo "  Class:       $(echo "${state}" | jq -r '.speed_class')"
     echo ""
     echo -e "  ${BOLD}GPU${NC}"
-    echo "  UUID:        $(echo "${state}" | jq -r '.gpu_uuid')"
+    local spoof_gpu
+    spoof_gpu=$(echo "${state}" | jq -r '.spoof_gpu_uuid // true')
+    if [ "${spoof_gpu}" = "true" ]; then
+        echo "  UUID:        $(echo "${state}" | jq -r '.gpu_uuid') (spoofed)"
+    else
+        echo "  UUID:        passthrough (no spoof)"
+    fi
     if [ "${gpu_holder}" = "${vmid}" ]; then
         echo "  Assigned:    YES (${MIXER_GPU_PCI})"
     else

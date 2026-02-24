@@ -124,13 +124,36 @@
       "suppress_flags": [],
       "mac_oui": "00:E0:4C",
       "nic_comment": "Realtek RTL8125B NIC"
+    },
+    "epyc-4464p": {
+      "model_string": "AMD EPYC 4464P 12-Core Processor",
+      "family": 25,
+      "model": 97,
+      "stepping": 2,
+      "cores": 12,
+      "threads": 24,
+      "threads_per_core": 2,
+      "arch": "zen4",
+      "smbios": {
+        "board_vendor": "ASRock Rack",
+        "board_model": "B650D4U",
+        "board_serial_prefix": "EPYC-",
+        "bios_vendor": "American Megatrends Inc.",
+        "bios_version": "L2.04A",
+        "system_manufacturer": "ASRock Rack",
+        "system_product": "B650D4U"
+      },
+      "suppress_flags": [],
+      "spoof_gpu_uuid": false,
+      "mac_oui": "A8:A1:59",
+      "nic_comment": "Intel I225-LM 2.5G NIC"
     }
   },
   "speed_classes": {
     "datacenter": {
-      "download_min": 800, "download_max": 1200,
-      "upload_min": 750, "upload_max": 1100,
-      "latency_min": 5, "latency_max": 25
+      "download_min": 1004, "download_max": 1099,
+      "upload_min": 1004, "upload_max": 1099,
+      "latency_min": 5, "latency_max": 12
     },
     "business": {
       "download_min": 300, "download_max": 600,

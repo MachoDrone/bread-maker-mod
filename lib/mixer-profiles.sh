@@ -1,7 +1,7 @@
 #!/bin/bash
 # lib/mixer-profiles.sh — Profile catalog loading and display
 #
-# Version: 0.03.0
+# Version: 0.03.1
 
 # --- List all profiles ---
 mixer_profiles_list() {
@@ -61,6 +61,12 @@ mixer_profiles_show() {
     echo "  Type:     $(echo "${p}" | jq -r '.nic_comment')"
     echo ""
 
+    local spoof_gpu
+    spoof_gpu=$(echo "${p}" | jq -r '.spoof_gpu_uuid // true')
+    echo -e "  ${BOLD}GPU UUID Spoofing${NC}"
+    echo "  Enabled:  ${spoof_gpu}"
+    echo ""
+
     local suppress
     suppress=$(echo "${p}" | jq -r '.suppress_flags | join(", ")')
     if [ -n "${suppress}" ] && [ "${suppress}" != "" ]; then
@@ -106,13 +112,16 @@ mixer_profile_load() {
     # Suppress flags as comma-separated -flag list for QEMU
     PROFILE_SUPPRESS_FLAGS=$(echo "${p}" | jq -r '.suppress_flags | map("-" + .) | join(",")')
 
+    # GPU UUID spoofing (default true for backward compat with profiles missing this field)
+    PROFILE_SPOOF_GPU_UUID=$(echo "${p}" | jq -r '.spoof_gpu_uuid // true')
+
     export PROFILE_NAME PROFILE_MODEL_STRING PROFILE_FAMILY PROFILE_MODEL
     export PROFILE_STEPPING PROFILE_CORES PROFILE_THREADS PROFILE_TPC
     export PROFILE_ARCH PROFILE_MAC_OUI
     export PROFILE_BOARD_VENDOR PROFILE_BOARD_MODEL PROFILE_BOARD_SERIAL_PREFIX
     export PROFILE_BIOS_VENDOR PROFILE_BIOS_VERSION
     export PROFILE_SYSTEM_MANUFACTURER PROFILE_SYSTEM_PRODUCT
-    export PROFILE_SUPPRESS_FLAGS
+    export PROFILE_SUPPRESS_FLAGS PROFILE_SPOOF_GPU_UUID
 }
 
 # --- Validate profile exists ---
