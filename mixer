@@ -5,7 +5,7 @@
 # Usage: mixer <command> [args...]
 # Run 'mixer help' for full command list
 #
-# Version: 0.03.0
+# Version: 0.03.2
 set -eo pipefail
 
 # --- Resolve script directory ---

@@ -2,7 +2,7 @@
 # lib/mixer-common.sh — Shared utilities for mixer CLI
 # Logging, colors, config loading, state file helpers, random generators
 #
-# Version: 0.03.0
+# Version: 0.03.2
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -15,7 +15,7 @@ DIM='\033[2m'
 NC='\033[0m'
 
 # --- Paths ---
-MIXER_VERSION="0.03.0"
+MIXER_VERSION="0.03.2"
 MIXER_BASE="/opt/mixer"
 MIXER_ETC="/etc/mixer"
 MIXER_STATE_DIR="${MIXER_ETC}/vms"

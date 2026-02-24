@@ -2,7 +2,7 @@
 # lib/mixer-provision.sh — Post-boot provisioning pipeline
 # SSHes into VM, waits for cloud-init, SCPs spoof files, builds fake image, verifies
 #
-# Version: 0.03.1
+# Version: 0.03.2
 
 PROVISION_SSH_TIMEOUT=300
 PROVISION_SSH_INTERVAL=10
@@ -202,15 +202,18 @@ mixer_provision_scp_files() {
     log_step "Copying spoof files to VM ${vmid}..."
 
     # Create build dir on VM
-    mixer_ssh "${ip}" "mkdir -p /tmp/mixer-build"
+    mixer_ssh "${ip}" "sudo mkdir -p /opt/mixer-spoof"
 
-    mixer_scp "${fake_fast}" "${ip}" "/tmp/mixer-build/fake-fast"
-    mixer_scp "${dockerfile}" "${ip}" "/tmp/mixer-build/Dockerfile.stats"
+    mixer_scp "${fake_fast}" "${ip}" "/tmp/mixer-fake-fast-upload"
+    mixer_ssh "${ip}" "sudo mv /tmp/mixer-fake-fast-upload /opt/mixer-spoof/fake-fast && sudo chmod +x /opt/mixer-spoof/fake-fast"
+    mixer_scp "${dockerfile}" "${ip}" "/tmp/mixer-Dockerfile-upload"
+    mixer_ssh "${ip}" "sudo mv /tmp/mixer-Dockerfile-upload /opt/mixer-spoof/Dockerfile.stats"
 
     if [ "${spoof_gpu}" = "true" ]; then
         local cuda_wrapper
         cuda_wrapper=$(mixer_provision_generate_cuda_wrapper "${vmid}")
-        mixer_scp "${cuda_wrapper}" "${ip}" "/tmp/mixer-build/cuda-check-wrapper.sh"
+        mixer_scp "${cuda_wrapper}" "${ip}" "/tmp/mixer-cuda-wrapper-upload"
+        mixer_ssh "${ip}" "sudo mv /tmp/mixer-cuda-wrapper-upload /opt/mixer-spoof/cuda-check-wrapper.sh && sudo chmod +x /opt/mixer-spoof/cuda-check-wrapper.sh"
         rm -f "${cuda_wrapper}"
     else
         log_info "GPU UUID spoofing disabled — skipping cuda-check wrapper"
@@ -229,8 +232,8 @@ mixer_provision_build_image() {
     log_step "Building fake stats image on VM..."
 
     local output
-    output=$(mixer_ssh "${ip}" "cd /tmp/mixer-build && \
-        docker build -t nosana/stats:v1.2.1 -f Dockerfile.stats . --quiet 2>&1" 2>&1)
+    output=$(mixer_ssh "${ip}" "cd /opt/mixer-spoof && \
+        sudo docker build -t nosana/stats:v1.2.1 -f Dockerfile.stats . --quiet 2>&1" 2>&1)
 
     if [ $? -ne 0 ]; then
         log_error "Failed to build fake stats image"
@@ -383,6 +386,71 @@ mixer_provision_verify() {
     echo ""
 }
 
+# --- Install watchdog cron + script on VM ---
+mixer_provision_setup_watchdog() {
+    local ip="$1"
+
+    log_step "Installing watchdog on VM..."
+
+    # Generate watchdog script locally, SCP to VM
+    local watchdog_tmp="/tmp/mixer-watchdog-$$.sh"
+    cat > "${watchdog_tmp}" <<'WATCHDOG'
+#!/bin/bash
+# mixer-watchdog.sh — Checks if spoofed stats image is present in podman, re-injects if missing
+# Installed by mixer provision pipeline. Runs via cron every 5 minutes.
+# Silent on success, logs only on re-injection or error.
+
+SPOOF_DIR="/opt/mixer-spoof"
+STATS_IMAGE="nosana/stats:v1.2.1"
+REGISTRY_PREFIX="registry.hub.docker.com"
+
+# Exit silently if podman container isn't running
+docker inspect podman >/dev/null 2>&1 || exit 0
+
+# Check if spoofed image responds correctly
+FAST_OUTPUT=$(timeout 15 docker exec podman podman run --rm --entrypoint /usr/local/bin/fast \
+    "${REGISTRY_PREFIX}/${STATS_IMAGE}" --json 2>/dev/null || true)
+
+if echo "${FAST_OUTPUT}" | grep -q '"downloadSpeed"' 2>/dev/null; then
+    exit 0
+fi
+
+# Image missing or broken — rebuild and re-inject
+echo "$(date '+%Y-%m-%d %H:%M:%S') — Spoofed image missing, rebuilding..."
+
+if [ ! -f "${SPOOF_DIR}/fake-fast" ] || [ ! -f "${SPOOF_DIR}/Dockerfile.stats" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — ERROR: build files missing from ${SPOOF_DIR}"
+    exit 1
+fi
+
+if ! docker build -t "${STATS_IMAGE}" -f "${SPOOF_DIR}/Dockerfile.stats" "${SPOOF_DIR}" --quiet >/dev/null 2>&1; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — ERROR: docker build failed"
+    exit 1
+fi
+docker tag "${STATS_IMAGE}" "${REGISTRY_PREFIX}/${STATS_IMAGE}" 2>/dev/null || true
+
+if docker save "${REGISTRY_PREFIX}/${STATS_IMAGE}" | docker exec -i podman podman load >/dev/null 2>&1; then
+    docker exec podman podman tag \
+        "${REGISTRY_PREFIX}/${STATS_IMAGE}" \
+        "docker.io/${STATS_IMAGE}" 2>/dev/null || true
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — Rebuilt and injected spoofed stats image"
+else
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — ERROR: injection into podman failed"
+    exit 1
+fi
+WATCHDOG
+
+    # SCP watchdog script to VM
+    mixer_scp "${watchdog_tmp}" "${ip}" "/tmp/mixer-watchdog-upload"
+    mixer_ssh "${ip}" "sudo mv /tmp/mixer-watchdog-upload /opt/mixer-spoof/mixer-watchdog.sh && sudo chmod +x /opt/mixer-spoof/mixer-watchdog.sh"
+    rm -f "${watchdog_tmp}"
+
+    # Install cron job
+    mixer_ssh "${ip}" "echo '*/5 * * * * root /opt/mixer-spoof/mixer-watchdog.sh >> /var/log/mixer-watchdog.log 2>&1' | sudo tee /etc/cron.d/mixer-watchdog >/dev/null && sudo chmod 644 /etc/cron.d/mixer-watchdog"
+
+    log_info "Watchdog installed on VM"
+}
+
 # --- Full provisioning pipeline ---
 mixer_provision_vm() {
     local vmid="$1"
@@ -426,13 +494,16 @@ mixer_provision_vm() {
     # Phase 6: Build fake stats image
     mixer_provision_build_image "${ip}" || return 1
 
-    # Phase 7: Start nosana and inject
+    # Phase 7: Install watchdog cron
+    mixer_provision_setup_watchdog "${ip}" || true
+
+    # Phase 8: Start nosana and inject
     mixer_provision_start_nosana "${ip}" || true
 
-    # Phase 8: Mark as provisioned
+    # Phase 9: Mark as provisioned
     mixer_vm_state_set "${vmid}" "provisioned" "true"
 
-    # Phase 9: Verify
+    # Phase 10: Verify
     mixer_provision_verify "${vmid}" "${ip}"
 
     log_info "Provisioning complete for VM ${vmid}"

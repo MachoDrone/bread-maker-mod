@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.03.2 — 2026-02-24
+
+### Standalone Spoof Script + Watchdog
+
+**New: `mixer-start.sh` — Standalone spoof + watchdog for VMs**
+- Self-contained script runnable via `bash <(wget -qO- ...)` directly on VMs
+- Generates random speed values within datacenter range (dl: 1004–1099, ul: 1004–1099, latency: 5–12)
+- Builds fake stats image, injects into podman, installs watchdog cron
+- First run generates values; subsequent runs reuse existing build files
+- Saves config to `/opt/mixer-spoof/.mixer-config` for persistence
+
+**New: Watchdog cron (`mixer-watchdog.sh`)**
+- Runs every 5 minutes via `/etc/cron.d/mixer-watchdog`
+- Checks if spoofed stats image is present in podman
+- Re-builds and re-injects if image was wiped (blue team recovery)
+- Silent on success, logs only on re-injection or error (`/var/log/mixer-watchdog.log`)
+
+**Updated: `mixer-provision.sh` — Path alignment + watchdog integration**
+- Build path changed from `/tmp/mixer-build/` to `/opt/mixer-spoof/` (aligns with standalone script)
+- New `mixer_provision_setup_watchdog()` function — installs watchdog cron via SSH provisioning pipeline
+- Watchdog setup added as Phase 7 in provisioning pipeline
+
+**Fixed: `MIXER_VERSION` in `mixer-common.sh`**
+- Was still `0.03.0` after v0.03.1 release — now correctly set to `0.03.2`
+
 ## 0.03.1 — 2026-02-24
 
 ### EPYC 4464P Profile + Conditional GPU UUID Spoofing
