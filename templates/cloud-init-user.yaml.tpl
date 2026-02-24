@@ -26,6 +26,7 @@ packages:
   - lsb-release
   - build-essential
   - linux-headers-generic
+  - cron
   - ethtool
   - pciutils
 
