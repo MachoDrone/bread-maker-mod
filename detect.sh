@@ -1,6 +1,6 @@
 #!/bin/bash
-# detect.sh — Anti-spoof detection suite (10+ checks)
-# Version: 0.00.1
+# detect.sh — Anti-spoof detection suite (11+ checks)
+# Version: 0.01.0
 #
 # Runs a series of hardware consistency checks to detect spoofing.
 # Exit code = number of FAILs found.
@@ -13,7 +13,7 @@ pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
 warn() { echo "  [WARN] $1"; WARN=$((WARN + 1)); }
 
-echo "=== Anti-Spoof Detection Suite v0.00.1 ==="
+echo "=== Anti-Spoof Detection Suite v0.01.0 ==="
 echo ""
 
 # ─── 1. CPUID vs /proc/cpuinfo: Family ───
@@ -106,7 +106,7 @@ if [ -n "$SYSFS_MAX_SPEED" ] && [ -n "$LSPCI_SPEED" ]; then
     # Extract numeric GT/s from each source (sysfs: "16.0 GT/s PCIe", lspci: "16GT/s")
     SYSFS_GTS=$(echo "$SYSFS_MAX_SPEED" | grep -oP '[\d.]+(?=\s*GT/s)')
     LSPCI_GTS=$(echo "$LSPCI_SPEED" | grep -oP '[\d.]+(?=GT/s)')
-    # Normalize: strip trailing .0 for comparison (16.0 → 16, 16 → 16)
+    # Normalize: strip trailing .0 for comparison (16.0 -> 16, 16 -> 16)
     SYSFS_GTS_NORM=$(echo "$SYSFS_GTS" | sed 's/\.0$//')
     LSPCI_GTS_NORM=$(echo "$LSPCI_GTS" | sed 's/\.0$//')
     if [ "$SYSFS_GTS_NORM" = "$LSPCI_GTS_NORM" ]; then
@@ -128,7 +128,28 @@ CPU_MODEL_NAME=$(grep -m1 "^model name" /proc/cpuinfo 2>/dev/null | sed 's/.*: /
 # Check if DDR5 is claimed via dmidecode
 DDR_TYPE=$(dmidecode -t memory 2>/dev/null | grep -i "Type:" | grep -v "Type Detail" | head -1 | awk '{print $NF}')
 
-if echo "$CPU_MODEL_NAME" | grep -qi "threadripper 1900X"; then
+# Zen 3 (Ryzen 5000 series) — DDR4 only, PCIe 4.0 max
+if echo "$CPU_MODEL_NAME" | grep -qP "Ryzen [3579] [0-9]{4}X?\b"; then
+    # Extract family: Ryzen 5000 series = Zen 3 (DDR4, PCIe 4.0)
+    RYZEN_SKU=$(echo "$CPU_MODEL_NAME" | grep -oP '\d{4}' | head -1)
+    RYZEN_GEN="${RYZEN_SKU:0:1}"
+
+    if [ "$RYZEN_GEN" = "5" ]; then
+        # Zen 3: DDR4 only
+        if echo "$DDR_TYPE" | grep -qi "DDR5"; then
+            fail "IMPOSSIBLE: Zen 3 Ryzen 5000 series does not support DDR5"
+        else
+            pass "Memory type plausible for Zen 3 CPU"
+        fi
+
+        # Zen 3: PCIe 4.0 max (16 GT/s)
+        if [ -n "$SYSFS_MAX_SPEED" ] && echo "$SYSFS_MAX_SPEED" | grep -q "32.0"; then
+            fail "IMPOSSIBLE: Zen 3 does not support PCIe 5.0 (32 GT/s)"
+        else
+            pass "PCIe speed plausible for Zen 3 CPU"
+        fi
+    fi
+elif echo "$CPU_MODEL_NAME" | grep -qi "threadripper 1900X"; then
     if echo "$DDR_TYPE" | grep -qi "DDR5"; then
         fail "IMPOSSIBLE: Threadripper 1900X (TR4 socket) does not support DDR5"
     else
@@ -141,7 +162,7 @@ if echo "$CPU_MODEL_NAME" | grep -qi "threadripper 1900X"; then
         pass "PCIe speed plausible for claimed CPU"
     fi
 else
-    pass "CPU is not claiming to be Threadripper 1900X — skipping combo check"
+    pass "No model-specific combo check triggered for: $CPU_MODEL_NAME"
 fi
 
 # ─── 6. Cache topology ───
@@ -150,14 +171,20 @@ echo "--- Check 6: L3 cache size vs expected ---"
 L3_SIZE=$(cat /sys/devices/system/cpu/cpu0/cache/index3/size 2>/dev/null)
 if [ -n "$L3_SIZE" ]; then
     if echo "$CPU_MODEL_NAME" | grep -qi "5900X"; then
-        # Real 5900X: 32768K or 32M
-        if echo "$L3_SIZE" | grep -qE "(32768|32M)"; then
+        # 5900X: 64MB L3 (2 CCDs), sysfs reports per-CCX = 32768K
+        if echo "$L3_SIZE" | grep -qE "(32768|32M|65536|64M)"; then
             pass "L3 cache $L3_SIZE consistent with Ryzen 9 5900X"
         else
-            fail "L3 cache $L3_SIZE unexpected for Ryzen 9 5900X (expected ~32MB)"
+            fail "L3 cache $L3_SIZE unexpected for Ryzen 9 5900X (expected ~32MB per CCD)"
+        fi
+    elif echo "$CPU_MODEL_NAME" | grep -qi "5800X"; then
+        # 5800X: 32MB L3 (1 CCD), sysfs reports 32768K
+        if echo "$L3_SIZE" | grep -qE "(32768|32M)"; then
+            pass "L3 cache $L3_SIZE consistent with Ryzen 7 5800X"
+        else
+            fail "L3 cache $L3_SIZE unexpected for Ryzen 7 5800X (expected 32768K)"
         fi
     elif echo "$CPU_MODEL_NAME" | grep -qi "1900X"; then
-        # Threadripper 1900X: 16384K total, 4096K per CCX (what we report in sysfs)
         if echo "$L3_SIZE" | grep -qE "(4096|16384)"; then
             pass "L3 cache $L3_SIZE consistent with Threadripper 1900X"
         else
@@ -175,9 +202,7 @@ echo ""
 echo "--- Check 7: Bogomips sanity ---"
 BOGOMIPS=$(grep -m1 "^bogomips" /proc/cpuinfo 2>/dev/null | awk '{print $NF}')
 if [ -n "$BOGOMIPS" ]; then
-    # Bogomips should be roughly 2x base clock. 5900X base=3.7GHz → ~7400
-    # Threadripper 1900X base=3.8GHz → ~7600
-    # We fake 7186.36 — a static check can't be definitive, but wildly wrong values flag
+    # Bogomips should be roughly 2x base clock. 5900X/5800X base=3.8GHz -> ~7600
     BOGO_INT=$(echo "$BOGOMIPS" | cut -d. -f1)
     if [ "$BOGO_INT" -gt 1000 ] && [ "$BOGO_INT" -lt 15000 ]; then
         pass "Bogomips=$BOGOMIPS in plausible range"
@@ -191,16 +216,26 @@ fi
 # ─── 8. LD_PRELOAD detection ───
 echo ""
 echo "--- Check 8: LD_PRELOAD detection ---"
+
+# 8a: Check LD_PRELOAD env var
 if [ -n "$LD_PRELOAD" ]; then
     fail "LD_PRELOAD is set: $LD_PRELOAD"
 else
     pass "LD_PRELOAD is not set"
 fi
 
-# Check /proc/self/maps for suspicious .so files
-SPOOF_MAPS=$(grep -i "spoof" /proc/self/maps 2>/dev/null)
-if [ -n "$SPOOF_MAPS" ]; then
-    fail "Suspicious library in /proc/self/maps: $(echo "$SPOOF_MAPS" | head -1)"
+# 8b: Check /proc/self/maps for suspicious .so files (broader than just "spoof")
+SUSPECT_MAPS=""
+# Look for known spoof library names AND generic LD_PRELOAD indicators
+for pattern in "spoof" "hwcompat" "libfake" "intercept" "preload" "inject"; do
+    FOUND=$(grep -i "$pattern" /proc/self/maps 2>/dev/null | head -1)
+    if [ -n "$FOUND" ]; then
+        SUSPECT_MAPS="$FOUND"
+        break
+    fi
+done
+if [ -n "$SUSPECT_MAPS" ]; then
+    fail "Suspicious library in /proc/self/maps: $SUSPECT_MAPS"
 else
     pass "No suspicious libraries in /proc/self/maps"
 fi
@@ -208,11 +243,19 @@ fi
 # ─── 9. Environment scan ───
 echo ""
 echo "--- Check 9: Environment variable scan ---"
-SPOOF_ENVS=$(strings /proc/self/environ 2>/dev/null | grep -i "spoof" | head -5)
+# Check both in-process env and /proc/self/environ for spoof indicators
+SPOOF_ENVS=""
+for pattern in "spoof" "SPOOF" "_MC_" "LD_PRELOAD"; do
+    FOUND=$(strings /proc/self/environ 2>/dev/null | grep "$pattern" | head -1)
+    if [ -n "$FOUND" ]; then
+        SPOOF_ENVS="$FOUND"
+        break
+    fi
+done
 if [ -n "$SPOOF_ENVS" ]; then
-    fail "Spoof-related env vars found: $SPOOF_ENVS"
+    fail "Suspicious env vars in /proc/self/environ: $SPOOF_ENVS"
 else
-    pass "No spoof-related environment variables"
+    pass "No suspicious environment variables"
 fi
 
 # ─── 10. nvidia-smi PCIe cross-check ───
@@ -240,6 +283,26 @@ if command -v nvidia-smi &>/dev/null; then
     fi
 else
     warn "nvidia-smi not available — skipping PCIe cross-check"
+fi
+
+# ─── 11. CPUID brand string vs cpuinfo model name ───
+echo ""
+echo "--- Check 11: CPUID brand string vs cpuinfo model name ---"
+if [ -x /app/detect_cpuid ]; then
+    CPUID_BRAND=$(/app/detect_cpuid brand 2>/dev/null)
+    CPUINFO_MODEL_NAME=$(grep -m1 "^model name" /proc/cpuinfo 2>/dev/null | sed 's/.*: //')
+
+    if [ -n "$CPUID_BRAND" ] && [ -n "$CPUINFO_MODEL_NAME" ]; then
+        if [ "$CPUID_BRAND" = "$CPUINFO_MODEL_NAME" ]; then
+            pass "Brand string matches: CPUID='$CPUID_BRAND', cpuinfo='$CPUINFO_MODEL_NAME'"
+        else
+            fail "Brand string MISMATCH: CPUID='$CPUID_BRAND', cpuinfo='$CPUINFO_MODEL_NAME'"
+        fi
+    else
+        warn "Could not read brand string from CPUID or cpuinfo"
+    fi
+else
+    warn "detect_cpuid binary not found — skipping brand string check"
 fi
 
 # ─── Summary ───
